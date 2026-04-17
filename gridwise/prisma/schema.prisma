@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CONSUMER
+  PROSUMER
+  ADMIN
+}
+
+enum TradeStatus {
+  OPEN
+  ACCEPTED
+  COMPLETED
+  CANCELLED
+}
+
+enum AnomalyType {
+  UNDERPERFORMING_SOURCE
+  DEMAND_SPIKE
+  SURPLUS_OVERFLOW
+}
+
+model User {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  email          String   @unique
+  hashedPassword String
+  role           Role     @default(CONSUMER)
+  district       String
+  city           String
+  pincode        String
+  createdAt      DateTime @default(now())
+
+  meters     SmartMeter[]
+  forecasts  EnergyForecast[]
+  sellOffers TradeOffer[]     @relation("Seller")
+  buyOffers  TradeOffer[]     @relation("Buyer")
+
+  @@index([district, city])
+}
+
+model SmartMeter {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String   @db.ObjectId
+  user               User     @relation(fields: [userId], references: [id])
+  currentLoad_kW     Float
+  solarGeneration_kW Float    @default(0)
+  batteryLevel_pct   Float    @default(0)
+  timestamp          DateTime @default(now())
+
+  @@index([userId, timestamp])
+}
+
+model EnergyForecast {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String   @db.ObjectId
+  user                  User     @relation(fields: [userId], references: [id])
+  forecastedDemand_kWh  Float
+  forecastedSurplus_kWh Float
+  horizon_hours         Int      @default(24)
+  modelVersion          String
+  generatedAt           DateTime @default(now())
+
+  @@index([userId, generatedAt])
+}
+
+model TradeOffer {
+  id               String      @id @default(auto()) @map("_id") @db.ObjectId
+  sellerId         String      @db.ObjectId
+  seller           User        @relation("Seller", fields: [sellerId], references: [id])
+  buyerId          String?     @db.ObjectId
+  buyer            User?       @relation("Buyer", fields: [buyerId], references: [id])
+  district         String
+  city             String
+  energyAmount_kWh Float
+  pricePerUnit_INR Float
+  billSplit_INR    Float
+  status           TradeStatus @default(OPEN)
+  createdAt        DateTime    @default(now())
+  completedAt      DateTime?
+
+  ledger TradeLedger?
+
+  @@index([district, city, status, createdAt])
+  @@index([sellerId, status])
+  @@index([buyerId, status])
+}
+
+model TradeLedger {
+  id                 String     @id @default(auto()) @map("_id") @db.ObjectId
+  tradeId            String     @unique @db.ObjectId
+  trade              TradeOffer @relation(fields: [tradeId], references: [id])
+  sellerEarnings_INR Float
+  buyerSavings_INR   Float
+  carbonCredits      Float
+  timestamp          DateTime   @default(now())
+
+  @@index([timestamp])
+}
+
+model GridAnomaly {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  district        String
+  city            String
+  type            AnomalyType
+  severity        String
+  description     String
+  suggestedAction String
+  resolvedAt      DateTime?
+  createdAt       DateTime    @default(now())
+
+  @@index([district, createdAt])
+  @@index([resolvedAt])
+}

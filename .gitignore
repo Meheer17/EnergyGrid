@@ -1,0 +1,59 @@
+# Environment files
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+!.env.example
+!**/.env.example
+
+# Node / Next.js
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/build/
+**/.turbo/
+**/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+**/venv/
+**/env/
+
+# Notebook checkpoints
+**/.ipynb_checkpoints/
+
+# ML/RAG generated artifacts
+ml_service/models/*.pkl
+ml_service/models/*.joblib
+rag_service/vectorstore/*.faiss
+rag_service/vectorstore/*.pkl
+
+# Local generated datasets
+colab/*.csv
+data/*.csv
+
+# Logs
+*.log
+**/*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
