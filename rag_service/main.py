@@ -1,4 +1,6 @@
+import asyncio
 import os
+import threading
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -71,6 +73,8 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_AI_API_KEY", "").strip()
 
 VECTORSTORE = None
 RETRIEVER = None
+INIT_STATUS = "not_started"
+INIT_ERROR = ""
 
 
 def _load_or_ingest_vectorstore() -> FAISS:
@@ -97,17 +101,35 @@ def _load_or_ingest_vectorstore() -> FAISS:
 
 @app.on_event("startup")
 def startup_event() -> None:
-    global VECTORSTORE, RETRIEVER
-    VECTORSTORE = _load_or_ingest_vectorstore()
-    RETRIEVER = VECTORSTORE.as_retriever(search_kwargs={"k": 6})
+    def _init_worker() -> None:
+        global VECTORSTORE, RETRIEVER, INIT_STATUS, INIT_ERROR
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        INIT_STATUS = "initializing"
+        try:
+            VECTORSTORE = _load_or_ingest_vectorstore()
+            RETRIEVER = VECTORSTORE.as_retriever(search_kwargs={"k": 6})
+            INIT_STATUS = "ready"
+            INIT_ERROR = ""
+        except Exception as exc:  # pragma: no cover - startup diagnostics
+            INIT_STATUS = "error"
+            INIT_ERROR = str(exc)
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+    thread = threading.Thread(target=_init_worker, daemon=True)
+    thread.start()
 
 
 @app.get("/health")
 def health() -> dict:
     return {
         "status": "ok",
+        "vectorstore_status": INIT_STATUS,
+        "init_error": INIT_ERROR,
         "vectorstore_ready": RETRIEVER is not None,
-        "model": "gemini-1.5-pro",
+        "model": "gemini-2.5-flash",
     }
 
 
@@ -116,7 +138,7 @@ def _llm() -> ChatGoogleGenerativeAI:
         raise HTTPException(status_code=500, detail="GOOGLE_AI_API_KEY is not configured")
 
     return ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",
+        model="gemini-2.5-flash",
         google_api_key=GOOGLE_API_KEY,
         temperature=0.2,
     )
@@ -124,6 +146,8 @@ def _llm() -> ChatGoogleGenerativeAI:
 
 @app.post("/rag/forecast")
 def rag_forecast(request: ForecastQueryRequest) -> dict:
+    if INIT_STATUS == "error":
+        raise HTTPException(status_code=500, detail=f"Vector store init failed: {INIT_ERROR}")
     if RETRIEVER is None:
         raise HTTPException(status_code=503, detail="Vector store not initialized")
     return run_forecast_query(request, RETRIEVER, _llm())
@@ -131,6 +155,8 @@ def rag_forecast(request: ForecastQueryRequest) -> dict:
 
 @app.post("/rag/anomaly")
 def rag_anomaly(request: AnomalyRequest) -> dict:
+    if INIT_STATUS == "error":
+        raise HTTPException(status_code=500, detail=f"Vector store init failed: {INIT_ERROR}")
     if RETRIEVER is None:
         raise HTTPException(status_code=503, detail="Vector store not initialized")
     return run_anomaly_query(request, RETRIEVER, _llm())
@@ -138,6 +164,8 @@ def rag_anomaly(request: AnomalyRequest) -> dict:
 
 @app.post("/rag/capacity")
 def rag_capacity(request: CapacityRequest) -> dict:
+    if INIT_STATUS == "error":
+        raise HTTPException(status_code=500, detail=f"Vector store init failed: {INIT_ERROR}")
     if RETRIEVER is None:
         raise HTTPException(status_code=503, detail="Vector store not initialized")
     return run_capacity_query(request, RETRIEVER, _llm())
