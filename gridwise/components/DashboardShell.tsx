@@ -71,7 +71,7 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
                 </div>
             </aside>
 
-            <section className="flex min-h-screen flex-1 flex-col">
+            <section className="flex min-h-screen min-w-0 flex-1 flex-col">
                 <header className="sticky top-0 z-20 border-b border-white/10 bg-[#070911]/95 px-5 py-4 backdrop-blur">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -98,7 +98,7 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
                     </div>
                 </header>
 
-                <div className="flex-1 p-5 md:p-7">{children}</div>
+                <div className="min-w-0 flex-1 p-5 md:p-7">{children}</div>
             </section>
         </div>
     );

@@ -37,9 +37,9 @@ export default function EnergyChart({
     const ChartComponent = kind === "area" ? AreaChart : LineChart;
 
     return (
-        <div className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
-            <div style={{ width: "100%", height }}>
-                <ResponsiveContainer>
+        <div className="min-w-0 rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+            <div style={{ width: "100%", height, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <ChartComponent data={data}>
                         <CartesianGrid strokeDasharray="4 6" stroke="rgba(255,255,255,0.08)" />
                         <XAxis dataKey={xKey} tick={{ fill: "#cdd6f4", fontSize: 11 }} axisLine={false} tickLine={false} />

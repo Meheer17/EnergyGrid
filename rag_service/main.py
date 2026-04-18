@@ -7,9 +7,14 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-from ingest import ingest_to_faiss
+from ingest import (
+    build_embeddings,
+    embedding_meta_matches,
+    get_embedding_config,
+    ingest_to_faiss,
+)
 from query import (
     AnomalyRequest,
     CapacityRequest,
@@ -78,25 +83,39 @@ INIT_ERROR = ""
 
 
 def _load_or_ingest_vectorstore() -> FAISS:
-    if not GOOGLE_API_KEY:
-        raise RuntimeError("GOOGLE_AI_API_KEY is not configured")
-
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=GOOGLE_API_KEY,
-    )
+    embedding_config = get_embedding_config()
 
     index_file = VECTORSTORE_DIR / "index.faiss"
     store_file = VECTORSTORE_DIR / "index.pkl"
 
-    if index_file.exists() and store_file.exists():
+    if (
+        index_file.exists()
+        and store_file.exists()
+        and embedding_meta_matches(VECTORSTORE_DIR, embedding_config)
+    ):
+        embeddings, _ = build_embeddings(GOOGLE_API_KEY)
         return FAISS.load_local(
             str(VECTORSTORE_DIR),
             embeddings,
             allow_dangerous_deserialization=True,
         )
 
+    if index_file.exists() and store_file.exists():
+        print("[RAG] Existing FAISS index does not match current embedding config. Rebuilding.")
+
     return ingest_to_faiss(DATA_PATH, VECTORSTORE_DIR, GOOGLE_API_KEY)
+
+
+def _safe_embedding_config() -> dict[str, str]:
+    try:
+        return get_embedding_config()
+    except Exception as exc:
+        return {
+            "provider": "invalid",
+            "model": "",
+            "base_url": "",
+            "error": str(exc),
+        }
 
 
 @app.on_event("startup")
@@ -124,11 +143,15 @@ def startup_event() -> None:
 
 @app.get("/health")
 def health() -> dict:
+    embedding_config = _safe_embedding_config()
     return {
         "status": "ok",
         "vectorstore_status": INIT_STATUS,
         "init_error": INIT_ERROR,
         "vectorstore_ready": RETRIEVER is not None,
+        "embedding_provider": embedding_config.get("provider"),
+        "embedding_model": embedding_config.get("model"),
+        "embedding_base_url": embedding_config.get("base_url"),
         "model": "gemini-2.5-flash",
     }
 

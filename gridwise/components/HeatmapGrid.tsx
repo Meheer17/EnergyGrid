@@ -29,6 +29,16 @@ function getHeatColor(value: number) {
 }
 
 export default function HeatmapGrid({ districts, selectedDistrict, onSelect }: HeatmapGridProps) {
+    if (districts.length === 0) {
+        return (
+            <div className="rounded-xl border border-white/10 bg-[#0a0a0f] p-6">
+                <p className="text-sm text-white/70">
+                    No district surplus data available yet. Generate forecasts or run demo seeding to populate the heatmap.
+                </p>
+            </div>
+        );
+    }
+
     const columns = 6;
     const cellW = 125;
     const cellH = 62;

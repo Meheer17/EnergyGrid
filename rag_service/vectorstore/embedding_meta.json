@@ -1,0 +1,7 @@
+{
+  "provider": "ollama",
+  "model": "nomic-embed-text",
+  "base_url": "http://127.0.0.1:11434",
+  "docs_indexed": 29202,
+  "created_at": "2026-04-18T19:18:10.374439+00:00"
+}

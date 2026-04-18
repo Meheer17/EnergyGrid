@@ -106,37 +106,48 @@ export default function AdminDashboardPage() {
                 .sort((a, b) => a.surplus_kWh - b.surplus_kWh)
                 .find((item) => item.surplus_kWh < 0)?.name ?? selectedDistrict ?? "Bangalore Urban";
 
-        const response = await fetch("/api/rag/query", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                question: `Generate a 3-hour capacity plan for ${deficitDistrict}`,
-                type: "capacity",
-                payload: {
-                    district: deficitDistrict,
-                    forecasted_demand_3h: 420,
-                    available_supply: 340,
+        try {
+            const response = await fetch("/api/rag/query", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question: `Generate a 3-hour capacity plan for ${deficitDistrict}`,
+                    type: "capacity",
+                    payload: {
+                        district: deficitDistrict,
+                        forecasted_demand_3h: 420,
+                        available_supply: 340,
+                    },
+                }),
+            });
+
+            const data = await response.json();
+
+            const actions: CapacityAction[] = (data.recommended_actions ?? []).map((item: unknown) => {
+                if (typeof item === "string") {
+                    return { action: item };
+                }
+                const row = item as CapacityAction;
+                return {
+                    action: row.action,
+                    expected_impact: row.expected_impact,
+                    cost_INR: row.cost_INR,
+                    time_to_implement: row.time_to_implement,
+                };
+            });
+
+            setCapacitySummary(data.summary ?? `Capacity plan generated for ${deficitDistrict}.`);
+            setCapacityActions(actions);
+        } catch {
+            setCapacitySummary(`Capacity planner is temporarily unavailable for ${deficitDistrict}.`);
+            setCapacityActions([
+                {
+                    action: "Run localized demand-response campaign in evening peak window",
+                    expected_impact: "Reduce shortfall risk by 5-8%",
+                    time_to_implement: "30-45 minutes",
                 },
-            }),
-        });
-
-        const data = await response.json();
-
-        const actions: CapacityAction[] = (data.recommended_actions ?? []).map((item: unknown) => {
-            if (typeof item === "string") {
-                return { action: item };
-            }
-            const row = item as CapacityAction;
-            return {
-                action: row.action,
-                expected_impact: row.expected_impact,
-                cost_INR: row.cost_INR,
-                time_to_implement: row.time_to_implement,
-            };
-        });
-
-        setCapacitySummary(data.summary ?? "Capacity plan generated.");
-        setCapacityActions(actions);
+            ]);
+        }
     }, [districtSurplus, selectedDistrict]);
 
     useEffect(() => {
@@ -144,10 +155,10 @@ export default function AdminDashboardPage() {
     }, [loadCoreData]);
 
     useEffect(() => {
-        if (districtSurplus.length > 0) {
+        if (!loading) {
             loadCapacityPlan();
         }
-    }, [districtSurplus, loadCapacityPlan]);
+    }, [loading, loadCapacityPlan]);
 
     const resolveAnomaly = async (anomalyId: string) => {
         setResolvingId(anomalyId);
@@ -397,10 +408,10 @@ export default function AdminDashboardPage() {
             </section>
 
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+                <div className="min-w-0 rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
                     <h3 className="mb-2 text-lg font-semibold text-white">Total Traded Energy / Day</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer>
+                    <div className="h-64 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <BarChart data={tradedPerDay}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                                 <XAxis dataKey="date" stroke="#94a3b8" />
@@ -412,10 +423,10 @@ export default function AdminDashboardPage() {
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+                <div className="min-w-0 rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
                     <h3 className="mb-2 text-lg font-semibold text-white">Top 5 Prosumer Districts</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer>
+                    <div className="h-64 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <BarChart data={topProsumerDistricts} layout="vertical">
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                                 <XAxis type="number" stroke="#94a3b8" />
@@ -427,10 +438,10 @@ export default function AdminDashboardPage() {
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+                <div className="min-w-0 rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
                     <h3 className="mb-2 text-lg font-semibold text-white">State Demand vs Supply (30d)</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer>
+                    <div className="h-64 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <LineChart data={demandVsSupply}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                                 <XAxis dataKey="date" stroke="#94a3b8" />

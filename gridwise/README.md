@@ -56,6 +56,12 @@ npm run prisma:push
 npm run seed:admin
 ```
 
+Optional: seed demo forecasts, trades, and anomalies (for non-empty dashboards):
+
+```bash
+npm run seed:demo
+```
+
 6. Run app:
 
 ```bash

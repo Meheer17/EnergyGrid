@@ -2,6 +2,7 @@ fastapi
 uvicorn
 langchain
 langchain-google-genai
+langchain-ollama
 langchain-community
 faiss-cpu
 pandas

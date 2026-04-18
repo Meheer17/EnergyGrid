@@ -9,7 +9,8 @@
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "seed:admin": "tsx scripts/seed_admin.ts"
+    "seed:admin": "tsx scripts/seed_admin.ts",
+    "seed:demo": "tsx scripts/seed_demo_data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
