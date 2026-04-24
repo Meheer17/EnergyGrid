@@ -62,6 +62,16 @@ type UiForecastPoint = {
     };
 };
 
+type ForecastMeta = {
+    source: "ml_service" | "fallback";
+    mlServiceUrl: string;
+    mlServiceStatus: {
+        reachable: boolean;
+        httpStatus: number | null;
+        reason?: string;
+    };
+};
+
 function toNonNegative(value: unknown, fallback = 0) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
@@ -244,6 +254,15 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
     );
 
     const mlServiceUrl = process.env.ML_SERVICE_URL?.trim() || "http://localhost:8001";
+    let forecastMeta: ForecastMeta = {
+        source: "fallback",
+        mlServiceUrl,
+        mlServiceStatus: {
+            reachable: false,
+            httpStatus: null,
+            reason: "ML service was not reached yet.",
+        },
+    };
 
     try {
         const response = await fetch(`${mlServiceUrl}/predict/horizon`, {
@@ -252,6 +271,15 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
             body: JSON.stringify(payload),
             cache: "no-store",
         });
+
+        forecastMeta = {
+            ...forecastMeta,
+            mlServiceStatus: {
+                reachable: true,
+                httpStatus: response.status,
+                reason: response.ok ? undefined : `ML service responded with status ${response.status}`,
+            },
+        };
 
         if (response.ok) {
             const remote = (await response.json()) as HorizonServiceResponse;
@@ -268,6 +296,15 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                     forecasted_surplus_kWh: Number(surplus.toFixed(3)),
                     confidence: Number(clamp01(remote.average_confidence ?? firstPoint.confidence ?? 0.75, 0.75).toFixed(3)),
                     model_version: String(remote.model_version ?? "ml-horizon-v1"),
+                };
+
+                forecastMeta = {
+                    ...forecastMeta,
+                    source: "ml_service",
+                    mlServiceStatus: {
+                        reachable: true,
+                        httpStatus: response.status,
+                    },
                 };
 
                 hourlyBreakdown = remote.forecasts.map((point) => {
@@ -295,12 +332,30 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
                         },
                     };
                 });
+            } else {
+                forecastMeta = {
+                    ...forecastMeta,
+                    mlServiceStatus: {
+                        reachable: true,
+                        httpStatus: response.status,
+                        reason: "ML response did not contain forecast points.",
+                    },
+                };
             }
         }
-    } catch {
+    } catch (error) {
         forecast = {
             ...forecast,
             model_version: "fallback-v1",
+        };
+
+        forecastMeta = {
+            ...forecastMeta,
+            mlServiceStatus: {
+                reachable: false,
+                httpStatus: null,
+                reason: error instanceof Error ? error.message : "Failed to call ML service.",
+            },
         };
     }
 
@@ -319,5 +374,6 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
         hierarchy,
         horizonHours,
         hourlyBreakdown,
+        _meta: forecastMeta,
     });
 });

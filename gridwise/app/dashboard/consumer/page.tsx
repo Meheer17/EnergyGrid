@@ -42,6 +42,10 @@ export default function ConsumerDashboardPage() {
         | {
             summary: string;
             recommended_actions?: string[];
+            _meta?: {
+                source: "rag_service" | "fallback";
+                reason?: string;
+            };
         }
         | null
     >(null);
@@ -119,8 +123,33 @@ export default function ConsumerDashboardPage() {
         [ledger]
     );
 
+    const consumerKpis = useMemo(() => {
+        const totalSaved = rows.reduce((sum, row) => sum + row.saved, 0);
+        const totalCarbon = rows.reduce((sum, row) => sum + row.carbon, 0);
+        return {
+            openOffers: offers.length,
+            totalSaved,
+            totalCarbon,
+        };
+    }, [offers.length, rows]);
+
     return (
         <div className="space-y-8">
+            <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <article className="glass-card rounded-xl p-3">
+                    <p className="metric-label">Open District Offers</p>
+                    <p className="mt-1 text-2xl font-semibold text-cyan-200">{consumerKpis.openOffers}</p>
+                </article>
+                <article className="glass-card rounded-xl p-3">
+                    <p className="metric-label">Total Savings (Shown Period)</p>
+                    <p className="mt-1 text-2xl font-semibold text-emerald-200">{formatINR(consumerKpis.totalSaved)}</p>
+                </article>
+                <article className="glass-card rounded-xl p-3">
+                    <p className="metric-label">Carbon Offset (kg)</p>
+                    <p className="mt-1 text-2xl font-semibold text-amber-200">{consumerKpis.totalCarbon.toFixed(2)}</p>
+                </article>
+            </section>
+
             <ForecastPanel />
 
             <section>
@@ -155,7 +184,7 @@ export default function ConsumerDashboardPage() {
 
             <section>
                 <h2 className="mb-3 text-xl font-semibold text-white">My Trade History</h2>
-                <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0f]">
+                <div className="glass-card overflow-hidden rounded-xl">
                     <table className="w-full border-collapse text-sm">
                         <thead className="bg-white/5 text-left text-white/70">
                             <tr>
@@ -194,7 +223,7 @@ export default function ConsumerDashboardPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+            <section className="glass-card rounded-xl p-4">
                 <h2 className="text-xl font-semibold text-white">AI Assistant</h2>
                 <p className="mt-1 text-sm text-white/60">Ask for district-level forecast insights and actions.</p>
 
@@ -216,6 +245,16 @@ export default function ConsumerDashboardPage() {
 
                 {assistantResult && (
                     <div className="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-500/5 p-4 text-sm text-cyan-50">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full border px-2 py-1 text-[11px] ${assistantResult._meta?.source === "rag_service" ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-100" : "border-amber-300/40 bg-amber-500/15 text-amber-100"}`}>
+                                Source: {assistantResult._meta?.source === "rag_service" ? "RAG Service" : "Fallback"}
+                            </span>
+                            {assistantResult._meta?.reason && (
+                                <span className="rounded-full border border-white/20 bg-white/5 px-2 py-1 text-[11px] text-white/80">
+                                    {assistantResult._meta.reason}
+                                </span>
+                            )}
+                        </div>
                         <p className="font-medium">{assistantResult.summary}</p>
                         {(assistantResult.recommended_actions ?? []).length > 0 && (
                             <ul className="mt-3 space-y-2 text-cyan-100/85">

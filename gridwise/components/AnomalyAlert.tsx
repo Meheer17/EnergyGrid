@@ -26,9 +26,9 @@ function severityClass(severity: string) {
 
 export default function AnomalyAlert({ anomaly, onResolve, resolving = false }: AnomalyAlertProps) {
     return (
-        <article className="rounded-xl border border-red-400/25 bg-red-500/10 p-4">
+        <article className="glass-card rounded-2xl p-4">
             <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/20 px-2 py-1 text-xs text-white/80">{anomaly.type}</span>
+                <span className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-200">{anomaly.type}</span>
                 <span className={`rounded-full border px-2 py-1 text-xs ${severityClass(anomaly.severity)}`}>
                     {anomaly.severity}
                 </span>
@@ -37,14 +37,18 @@ export default function AnomalyAlert({ anomaly, onResolve, resolving = false }: 
             <h3 className="mt-3 text-lg font-semibold text-white">
                 {anomaly.city}, {anomaly.district}
             </h3>
-            <p className="mt-2 text-sm text-red-100/90">{anomaly.description}</p>
-            <p className="mt-2 text-sm text-cyan-200">Action: {anomaly.suggestedAction}</p>
+            <p className="mt-2 text-sm text-slate-100/90">{anomaly.description}</p>
+
+            <div className="mt-3 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                <p className="text-xs uppercase tracking-[0.1em] text-amber-200/75">Suggested Action</p>
+                <p className="mt-1">{anomaly.suggestedAction}</p>
+            </div>
 
             {onResolve && (
                 <button
                     onClick={() => onResolve(anomaly.id)}
                     disabled={resolving}
-                    className="mt-4 rounded-lg bg-red-400 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-red-300 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="mt-4 rounded-lg bg-cyan-400 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                     {resolving ? "Resolving..." : "Resolve"}
                 </button>

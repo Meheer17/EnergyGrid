@@ -16,11 +16,14 @@ type TradeCardProps = {
 };
 
 export default function TradeCard({ offer, onAccept, accepting = false }: TradeCardProps) {
+    const marketEquivalent = offer.billSplit_INR * 1.15;
+    const estimatedSavings = Math.max(0, marketEquivalent - offer.billSplit_INR);
+
     return (
-        <article className="rounded-xl border border-white/10 bg-[#0d1016] p-4 shadow-[0_0_0_1px_rgba(0,229,255,0.08)]">
+        <article className="glass-card rounded-2xl p-4">
             <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/70">{offer.status}</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/80">{offer.status}</p>
                     <h3 className="mt-1 text-lg font-semibold text-white">Seller in {offer.city}</h3>
                 </div>
                 <span className="rounded-full border border-white/20 px-2 py-1 text-xs text-white/70">#{offer.id.slice(-6)}</span>
@@ -38,6 +41,10 @@ export default function TradeCard({ offer, onAccept, accepting = false }: TradeC
                 <div className="col-span-2">
                     <dt className="text-white/50">Bill split</dt>
                     <dd className="text-xl font-semibold text-cyan-300">INR {offer.billSplit_INR.toFixed(2)}</dd>
+                </div>
+                <div className="col-span-2 rounded-lg border border-emerald-300/30 bg-emerald-500/10 px-3 py-2">
+                    <dt className="text-xs uppercase tracking-[0.1em] text-emerald-200/80">Estimated Savings vs Grid</dt>
+                    <dd className="mt-1 text-base font-semibold text-emerald-100">INR {estimatedSavings.toFixed(2)}</dd>
                 </div>
             </dl>
 

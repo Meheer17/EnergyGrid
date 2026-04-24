@@ -19,6 +19,15 @@ type ForecastData = {
         localArea: string;
     };
     horizonHours: number;
+    _meta?: {
+        source: "ml_service" | "fallback";
+        mlServiceUrl: string;
+        mlServiceStatus: {
+            reachable: boolean;
+            httpStatus: number | null;
+            reason?: string;
+        };
+    };
     hourlyBreakdown: Array<{
         timestamp: string;
         label: string;
@@ -75,6 +84,10 @@ export default function ProsumerDashboardPage() {
         | {
             summary: string;
             recommended_actions?: string[];
+            _meta?: {
+                source: "rag_service" | "fallback";
+                reason?: string;
+            };
         }
         | null
     >(null);
@@ -175,10 +188,37 @@ export default function ProsumerDashboardPage() {
 
     const billSplit = useMemo(() => energyAmount_kWh * pricePerUnit_INR, [energyAmount_kWh, pricePerUnit_INR]);
 
+    const sourceText = forecast?._meta?.source === "ml_service" ? "ML Service" : "Fallback";
+    const forecastGap = useMemo(() => {
+        if (!forecast) return 0;
+        return Math.max(0, forecast.forecast.forecasted_demand_kWh - (forecast.forecast.forecasted_demand_kWh + forecast.forecast.forecasted_surplus_kWh));
+    }, [forecast]);
+
     return (
         <div className="space-y-8">
+            <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <article className="glass-card rounded-xl p-3">
+                    <p className="metric-label">Forecast Source</p>
+                    <p className={`mt-1 text-lg font-semibold ${forecast?._meta?.source === "ml_service" ? "text-emerald-200" : "text-amber-200"}`}>{sourceText}</p>
+                </article>
+                <article className="glass-card rounded-xl p-3">
+                    <p className="metric-label">Demand (Current)</p>
+                    <p className="mt-1 text-lg font-semibold text-red-200">{(forecast?.forecast.forecasted_demand_kWh ?? 0).toFixed(2)} kWh</p>
+                </article>
+                <article className="glass-card rounded-xl p-3">
+                    <p className="metric-label">Surplus (Current)</p>
+                    <p className={`mt-1 text-lg font-semibold ${(forecast?.forecast.forecasted_surplus_kWh ?? 0) >= 0 ? "text-emerald-200" : "text-orange-200"}`}>
+                        {(forecast?.forecast.forecasted_surplus_kWh ?? 0).toFixed(2)} kWh
+                    </p>
+                </article>
+                <article className="glass-card rounded-xl p-3">
+                    <p className="metric-label">Estimated Deficit</p>
+                    <p className="mt-1 text-lg font-semibold text-amber-200">{forecastGap.toFixed(2)} kWh</p>
+                </article>
+            </section>
+
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                <div className="xl:col-span-2 rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+                <div className="glass-card xl:col-span-2 rounded-xl p-4">
                     <div className="mb-4 flex items-end justify-between">
                         <div>
                             <h2 className="text-xl font-semibold text-white">Solar vs Demand (24h)</h2>
@@ -190,6 +230,12 @@ export default function ProsumerDashboardPage() {
                             </p>
                         )}
                     </div>
+
+                    {forecast?._meta?.mlServiceStatus.reason && forecast._meta.source !== "ml_service" && (
+                        <p className="mb-3 rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                            ML fallback reason: {forecast._meta.mlServiceStatus.reason}
+                        </p>
+                    )}
 
                     {forecast && (
                         <div className="mb-3 grid grid-cols-1 gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/80 md:grid-cols-5">
@@ -231,7 +277,7 @@ export default function ProsumerDashboardPage() {
                 </div>
 
                 <div className="space-y-4">
-                    <div className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+                    <div className="glass-card rounded-xl p-4">
                         <p className="text-sm text-white/60">This Month Earnings</p>
                         <h3 className="mt-2 text-3xl font-bold text-cyan-300">{formatINR(summary.totalEarnings_INR ?? 0)}</h3>
                         <p className="mt-2 text-sm text-white/70">
@@ -248,7 +294,7 @@ export default function ProsumerDashboardPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+            <section className="glass-card rounded-xl p-4">
                 <h2 className="text-xl font-semibold text-white">My Active Offers</h2>
                 <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
                     <table className="w-full border-collapse text-sm">
@@ -285,7 +331,7 @@ export default function ProsumerDashboardPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+            <section className="glass-card rounded-xl p-4">
                 <h2 className="text-xl font-semibold text-white">AI Assistant</h2>
                 <p className="text-sm text-white/60">Generate capacity-oriented recommendations for the next 3 hours.</p>
 
@@ -307,6 +353,16 @@ export default function ProsumerDashboardPage() {
 
                 {assistantResult && (
                     <div className="mt-4 rounded-xl border border-violet-300/20 bg-violet-500/10 p-4 text-sm text-violet-50">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full border px-2 py-1 text-[11px] ${assistantResult._meta?.source === "rag_service" ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-100" : "border-amber-300/40 bg-amber-500/15 text-amber-100"}`}>
+                                Source: {assistantResult._meta?.source === "rag_service" ? "RAG Service" : "Fallback"}
+                            </span>
+                            {assistantResult._meta?.reason && (
+                                <span className="rounded-full border border-white/20 bg-white/5 px-2 py-1 text-[11px] text-white/80">
+                                    {assistantResult._meta.reason}
+                                </span>
+                            )}
+                        </div>
                         <p className="font-medium">{assistantResult.summary}</p>
                         {(assistantResult.recommended_actions ?? []).length > 0 && (
                             <ul className="mt-3 space-y-2 text-violet-100/85">

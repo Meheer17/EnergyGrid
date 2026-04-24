@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Manrope, Sora } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
-const spaceGrotesk = Space_Grotesk({
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-body" });
+const sora = Sora({
   subsets: ["latin"],
   variable: "--font-heading",
 });
@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${spaceGrotesk.variable}`}>
+      <body className={`${manrope.variable} ${sora.variable}`}>
         {children}
         <Toaster richColors position="top-right" />
       </body>

@@ -74,10 +74,10 @@ export default function SignupPage() {
     });
 
     return (
-        <section className="w-full max-w-2xl rounded-2xl border border-white/10 bg-black/50 p-8 shadow-[0_0_0_1px_rgba(124,58,237,0.35),0_24px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.24em] text-violet-300/80">GridWise</p>
-            <h1 className="mt-3 text-3xl font-bold text-white">Create your smart energy account</h1>
-            <p className="mt-2 text-sm text-white/70">Join your neighborhood energy network in Karnataka.</p>
+        <section className="glass-card w-full max-w-2xl rounded-3xl p-8">
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/80">GridWise Onboarding</p>
+            <h1 className="mt-3 text-3xl font-bold text-white">Create Your Energy Network Account</h1>
+            <p className="mt-2 text-sm text-white/70">Join district-level smart forecasting and trading in Karnataka.</p>
 
             <form onSubmit={onSubmit} className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="md:col-span-2">
@@ -204,7 +204,7 @@ export default function SignupPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="md:col-span-2 rounded-lg bg-cyan-400 px-4 py-2 font-medium text-slate-900 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="md:col-span-2 rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-900 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {loading ? "Creating account..." : "Create account"}
                 </button>

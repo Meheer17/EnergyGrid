@@ -31,6 +31,22 @@ const fallbackResult = {
     confidence: 0.41,
 };
 
+function withMeta(
+    payload: Record<string, unknown>,
+    meta: {
+        source: "rag_service" | "fallback";
+        type: "forecast" | "anomaly" | "capacity";
+        endpoint: string;
+        ragServiceUrl: string;
+        reason?: string;
+    }
+) {
+    return {
+        ...payload,
+        _meta: meta,
+    };
+}
+
 export const POST = withAuth(async (req: NextRequest, { user }) => {
     const body = await req.json();
     const parsed = schema.safeParse(body);
@@ -93,17 +109,39 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
         const data = await response.json();
         if (!response.ok) {
             return NextResponse.json(
-                {
+                withMeta({
                     ...fallbackResult,
                     summary: `GridWise assistant is currently using fallback reasoning because the RAG service returned ${response.status}.`,
                     upstream: data,
-                },
+                }, {
+                    source: "fallback",
+                    type: parsed.data.type,
+                    endpoint,
+                    ragServiceUrl,
+                    reason: `RAG service responded with status ${response.status}`,
+                }),
                 { status: 200 }
             );
         }
 
-        return NextResponse.json(data);
-    } catch {
-        return NextResponse.json(fallbackResult, { status: 200 });
+        return NextResponse.json(
+            withMeta(data as Record<string, unknown>, {
+                source: "rag_service",
+                type: parsed.data.type,
+                endpoint,
+                ragServiceUrl,
+            })
+        );
+    } catch (error) {
+        return NextResponse.json(
+            withMeta(fallbackResult, {
+                source: "fallback",
+                type: parsed.data.type,
+                endpoint,
+                ragServiceUrl,
+                reason: error instanceof Error ? error.message : "Unable to reach RAG service",
+            }),
+            { status: 200 }
+        );
     }
 });

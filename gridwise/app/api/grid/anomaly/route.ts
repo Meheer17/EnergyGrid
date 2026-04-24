@@ -22,24 +22,54 @@ export const GET = withAuth(async (req: NextRequest) => {
 
     const latestForecasts = await prisma.energyForecast.findMany({
         include: {
-            user: { select: { district: true } },
+            user: { select: { district: true, city: true } },
         },
         orderBy: { generatedAt: "desc" },
         take: 1000,
     });
 
-    const districtBuckets = new Map<string, { total: number; count: number }>();
+    const districtBuckets = new Map<string, { surplusTotal: number; demandTotal: number; supplyTotal: number; count: number }>();
+    const cityBuckets = new Map<
+        string,
+        { district: string; city: string; surplusTotal: number; demandTotal: number; supplyTotal: number; count: number }
+    >();
     const dailyDemandSupplyBuckets = new Map<string, { demandTotal: number; supplyTotal: number; count: number }>();
+
     for (const forecast of latestForecasts) {
         const districtName = forecast.user.district;
-        const current = districtBuckets.get(districtName) ?? { total: 0, count: 0 };
-        current.total += forecast.forecastedSurplus_kWh;
-        current.count += 1;
-        districtBuckets.set(districtName, current);
+        const cityName = forecast.user.city;
+        const demand = Number(forecast.forecastedDemand_kWh);
+        const surplus = Number(forecast.forecastedSurplus_kWh);
+        const supply = Number(demand + surplus);
+
+        const districtBucket = districtBuckets.get(districtName) ?? {
+            surplusTotal: 0,
+            demandTotal: 0,
+            supplyTotal: 0,
+            count: 0,
+        };
+        districtBucket.surplusTotal += surplus;
+        districtBucket.demandTotal += demand;
+        districtBucket.supplyTotal += supply;
+        districtBucket.count += 1;
+        districtBuckets.set(districtName, districtBucket);
+
+        const cityKey = `${districtName}::${cityName}`;
+        const cityBucket = cityBuckets.get(cityKey) ?? {
+            district: districtName,
+            city: cityName,
+            surplusTotal: 0,
+            demandTotal: 0,
+            supplyTotal: 0,
+            count: 0,
+        };
+        cityBucket.surplusTotal += surplus;
+        cityBucket.demandTotal += demand;
+        cityBucket.supplyTotal += supply;
+        cityBucket.count += 1;
+        cityBuckets.set(cityKey, cityBucket);
 
         const dateKey = forecast.generatedAt.toISOString().slice(0, 10);
-        const demand = Number(forecast.forecastedDemand_kWh);
-        const supply = Number(forecast.forecastedDemand_kWh + forecast.forecastedSurplus_kWh);
         const dayBucket = dailyDemandSupplyBuckets.get(dateKey) ?? {
             demandTotal: 0,
             supplyTotal: 0,
@@ -54,8 +84,59 @@ export const GET = withAuth(async (req: NextRequest) => {
 
     const districtSurplus = Array.from(districtBuckets.entries()).map(([name, bucket]) => ({
         name,
-        surplus_kWh: bucket.count ? bucket.total / bucket.count : 0,
+        surplus_kWh: bucket.count ? bucket.surplusTotal / bucket.count : 0,
     }));
+
+    const districtInsights = Array.from(districtBuckets.entries())
+        .map(([districtName, bucket]) => {
+            const avgDemand = bucket.count ? bucket.demandTotal / bucket.count : 0;
+            const avgSupply = bucket.count ? bucket.supplyTotal / bucket.count : 0;
+            const avgSurplus = bucket.count ? bucket.surplusTotal / bucket.count : 0;
+            const demand3h = avgDemand * 3;
+            const supply3h = avgSupply * 3;
+            const gap3h = Math.max(0, demand3h - supply3h);
+
+            const riskLevel = gap3h >= 120 ? "HIGH" : gap3h >= 45 ? "MEDIUM" : "LOW";
+
+            return {
+                district: districtName,
+                avgDemand_kWh: Number(avgDemand.toFixed(3)),
+                avgSupply_kWh: Number(avgSupply.toFixed(3)),
+                avgSurplus_kWh: Number(avgSurplus.toFixed(3)),
+                demand3h_kWh: Number(demand3h.toFixed(2)),
+                supply3h_kWh: Number(supply3h.toFixed(2)),
+                gap3h_kWh: Number(gap3h.toFixed(2)),
+                riskLevel,
+            };
+        })
+        .sort((a, b) => b.gap3h_kWh - a.gap3h_kWh);
+
+    const cityInsights = Array.from(cityBuckets.values())
+        .map((bucket) => {
+            const avgDemand = bucket.count ? bucket.demandTotal / bucket.count : 0;
+            const avgSupply = bucket.count ? bucket.supplyTotal / bucket.count : 0;
+            const avgSurplus = bucket.count ? bucket.surplusTotal / bucket.count : 0;
+            const demand3h = avgDemand * 3;
+            const supply3h = avgSupply * 3;
+            const gap3h = Math.max(0, demand3h - supply3h);
+
+            const riskLevel = gap3h >= 60 ? "HIGH" : gap3h >= 20 ? "MEDIUM" : "LOW";
+
+            return {
+                district: bucket.district,
+                city: bucket.city,
+                avgDemand_kWh: Number(avgDemand.toFixed(3)),
+                avgSupply_kWh: Number(avgSupply.toFixed(3)),
+                avgSurplus_kWh: Number(avgSurplus.toFixed(3)),
+                demand3h_kWh: Number(demand3h.toFixed(2)),
+                supply3h_kWh: Number(supply3h.toFixed(2)),
+                gap3h_kWh: Number(gap3h.toFixed(2)),
+                riskLevel,
+            };
+        })
+        .filter((row) => (district ? row.district === district : true))
+        .sort((a, b) => b.gap3h_kWh - a.gap3h_kWh)
+        .slice(0, 40);
 
     const demandSupplyTrend = Array.from(dailyDemandSupplyBuckets.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
@@ -66,7 +147,13 @@ export const GET = withAuth(async (req: NextRequest) => {
             supply: bucket.count ? Number((bucket.supplyTotal / bucket.count).toFixed(2)) : 0,
         }));
 
-    return NextResponse.json({ anomalies, districtSurplus, demandSupplyTrend });
+    return NextResponse.json({
+        anomalies,
+        districtSurplus,
+        demandSupplyTrend,
+        districtInsights,
+        cityInsights,
+    });
 }, ["ADMIN"]);
 
 export const POST = withAuth(async (req: NextRequest) => {

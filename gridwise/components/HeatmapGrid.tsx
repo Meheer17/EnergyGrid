@@ -48,7 +48,16 @@ export default function HeatmapGrid({ districts, selectedDistrict, onSelect }: H
     const height = rows * cellH + (rows - 1) * gap;
 
     return (
-        <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+        <div className="glass-card overflow-x-auto rounded-2xl p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] text-white/70">
+                <span className="inline-flex items-center gap-1 rounded-full border border-red-300/30 bg-red-500/15 px-2 py-1 text-red-200">
+                    <span className="inline-block h-2 w-2 rounded-full bg-red-300" /> Deficit
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/30 bg-cyan-500/15 px-2 py-1 text-cyan-200">
+                    <span className="inline-block h-2 w-2 rounded-full bg-cyan-300" /> Surplus
+                </span>
+                <span className="text-white/55">Click any district to focus downstream analytics.</span>
+            </div>
             <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="District surplus heatmap">
                 {districts.map((district, index) => {
                     const row = Math.floor(index / columns);
@@ -66,7 +75,7 @@ export default function HeatmapGrid({ districts, selectedDistrict, onSelect }: H
                                 height={cellH}
                                 rx={12}
                                 fill={getHeatColor(district.surplus_kWh)}
-                                stroke={selected ? "#ffffff" : "rgba(255,255,255,0.25)"}
+                                stroke={selected ? "#ffffff" : "rgba(255,255,255,0.35)"}
                                 strokeWidth={selected ? 2.5 : 1}
                             />
                             <text x={x + 10} y={y + 24} fontSize={12} fill="#06121a" fontWeight={700}>

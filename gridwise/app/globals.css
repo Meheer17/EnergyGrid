@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 :root {
-  --bg-main: #05060b;
-  --bg-surface: #0a0a0f;
-  --accent: #00e5ff;
-  --accent-secondary: #7c3aed;
+  --bg-main: #06101b;
+  --bg-surface: #0e1828;
+  --accent: #16d9e3;
+  --accent-secondary: #f59e0b;
   --text-main: #f4f7ff;
   --text-muted: #98a2b3;
   --border-muted: rgba(255, 255, 255, 0.12);
@@ -17,9 +17,9 @@ body {
   color: var(--text-main);
   font-family: var(--font-body), sans-serif;
   background:
-    radial-gradient(circle at 8% 12%, rgba(0, 229, 255, 0.1), transparent 28%),
-    radial-gradient(circle at 82% 3%, rgba(124, 58, 237, 0.16), transparent 25%),
-    linear-gradient(180deg, #07080f 0%, #04050a 100%);
+    radial-gradient(circle at 10% 12%, rgba(22, 217, 227, 0.16), transparent 30%),
+    radial-gradient(circle at 88% 2%, rgba(245, 158, 11, 0.14), transparent 28%),
+    linear-gradient(180deg, #08101c 0%, #050b14 100%);
 }
 
 h1,
@@ -38,5 +38,19 @@ h6 {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .glass-card {
+    background: linear-gradient(180deg, rgba(14, 24, 40, 0.82) 0%, rgba(8, 16, 30, 0.84) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(10px);
+  }
+
+  .metric-label {
+    color: rgba(226, 232, 240, 0.66);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 }

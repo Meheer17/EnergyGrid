@@ -56,10 +56,10 @@ export default function LoginPage() {
     });
 
     return (
-        <section className="w-full max-w-md rounded-2xl border border-white/10 bg-black/50 p-8 shadow-[0_0_0_1px_rgba(0,229,255,0.15),0_24px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/70">GridWise</p>
-            <h1 className="mt-3 text-3xl font-bold text-white">Sign in to your grid</h1>
-            <p className="mt-2 text-sm text-white/70">Access district-level forecasts and smart energy trade actions.</p>
+        <section className="glass-card w-full max-w-md rounded-3xl p-8">
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/70">GridWise Access</p>
+            <h1 className="mt-3 text-3xl font-bold text-white">Sign in to Control Room</h1>
+            <p className="mt-2 text-sm text-white/70">Access district-level forecasts, trading, and AI recommendations.</p>
 
             <form onSubmit={onSubmit} className="mt-8 space-y-4">
                 <div>
@@ -99,7 +99,7 @@ export default function LoginPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-lg bg-cyan-400 px-4 py-2 font-medium text-slate-900 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-900 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {loading ? "Signing in..." : "Sign in"}
                 </button>

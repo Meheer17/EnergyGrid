@@ -37,20 +37,32 @@ export default function EnergyChart({
     const ChartComponent = kind === "area" ? AreaChart : LineChart;
 
     return (
-        <div className="min-w-0 rounded-xl border border-white/10 bg-[#0a0a0f] p-4">
+        <div className="glass-card min-w-0 rounded-2xl p-4">
+            <div className="mb-3 flex flex-wrap gap-2">
+                {lines.map((line) => (
+                    <span
+                        key={line.key}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/80"
+                    >
+                        <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: line.color }} />
+                        {line.label}
+                    </span>
+                ))}
+            </div>
             <div style={{ width: "100%", height, minWidth: 0 }}>
                 <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <ChartComponent data={data}>
                         <CartesianGrid strokeDasharray="4 6" stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey={xKey} tick={{ fill: "#cdd6f4", fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: "#cdd6f4", fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <XAxis dataKey={xKey} tick={{ fill: "#dbe4f0", fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: "#dbe4f0", fontSize: 11 }} axisLine={false} tickLine={false} />
                         <Tooltip
                             contentStyle={{
-                                background: "#07080f",
+                                background: "#0a1424",
                                 border: "1px solid rgba(255,255,255,0.15)",
                                 borderRadius: 10,
                                 color: "#fff",
                             }}
+                            labelStyle={{ color: "#7dd3fc" }}
                         />
                         {lines.map((line) => {
                             const renderAsArea = line.type === "area" || kind === "area";
