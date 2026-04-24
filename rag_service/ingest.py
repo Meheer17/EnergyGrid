@@ -20,6 +20,16 @@ DEFAULT_EMBEDDING_PROVIDER = "google"
 DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 DEFAULT_OLLAMA_EMBED_MODEL = "nomic-embed-text"
 
+INGEST_USECOLS = [
+    "timestamp",
+    "district",
+    "city",
+    "adjusted_demand_kWh",
+    "grid_surplus_kWh",
+    "solar_generation_kWh",
+    "hour",
+]
+
 
 class SerialOllamaEmbeddings(Embeddings):
     """Run Ollama embeddings via direct HTTP API calls.
@@ -240,6 +250,46 @@ def build_documents(df: pd.DataFrame) -> List[str]:
     return docs
 
 
+def _read_ingest_csv(csv_path: Path, remaining_rows: int | None = None) -> pd.DataFrame:
+    read_kwargs: dict[str, Any] = {"usecols": INGEST_USECOLS}
+    if remaining_rows is not None and remaining_rows > 0:
+        read_kwargs["nrows"] = remaining_rows
+    return pd.read_csv(csv_path, **read_kwargs)
+
+
+def _load_ingest_dataframe(data_path: Path, max_rows: int) -> pd.DataFrame:
+    if data_path.is_file():
+        limit = max_rows if max_rows > 0 else None
+        return _read_ingest_csv(data_path, limit)
+
+    if data_path.is_dir():
+        csv_files = sorted(data_path.glob("*.csv"))
+        if not csv_files:
+            raise FileNotFoundError(f"No CSV files found in directory: {data_path}")
+
+        frames: List[pd.DataFrame] = []
+        remaining = max_rows if max_rows > 0 else None
+
+        for csv_file in csv_files:
+            if remaining is not None and remaining <= 0:
+                break
+
+            frame = _read_ingest_csv(csv_file, remaining)
+            if frame.empty:
+                continue
+
+            frames.append(frame)
+            if remaining is not None:
+                remaining -= len(frame)
+
+        if not frames:
+            raise RuntimeError(f"No rows loaded from CSV directory: {data_path}")
+
+        return pd.concat(frames, ignore_index=True)
+
+    raise FileNotFoundError(f"Data file not found: {data_path}")
+
+
 def ingest_to_faiss(data_path: Path, vectorstore_dir: Path, google_api_key: str) -> FAISS:
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
@@ -248,25 +298,11 @@ def ingest_to_faiss(data_path: Path, vectorstore_dir: Path, google_api_key: str)
     max_docs = _env_int("GRIDWISE_MAX_DOCS", DEFAULT_MAX_DOCS)
     embed_batch_size = max(1, _env_int("GRIDWISE_EMBED_BATCH_SIZE", DEFAULT_EMBED_BATCH_SIZE))
 
-    read_kwargs = {
-        "usecols": [
-            "timestamp",
-            "district",
-            "city",
-            "adjusted_demand_kWh",
-            "grid_surplus_kWh",
-            "solar_generation_kWh",
-            "hour",
-        ]
-    }
-    if max_rows > 0:
-        read_kwargs["nrows"] = max_rows
-
     print(f"[RAG] Reading data from {data_path}")
     if max_rows > 0:
         print(f"[RAG] Applying ingest row cap: {max_rows} rows")
     read_start = time.perf_counter()
-    df = pd.read_csv(data_path, **read_kwargs)
+    df = _load_ingest_dataframe(data_path, max_rows)
     print(f"[RAG] Loaded rows: {len(df)} in {time.perf_counter() - read_start:.1f}s")
 
     docs_start = time.perf_counter()

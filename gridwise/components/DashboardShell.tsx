@@ -53,8 +53,8 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
                                 key={item.href}
                                 href={item.href}
                                 className={`block rounded-lg px-4 py-2 text-sm transition ${active
-                                        ? "bg-cyan-400 text-slate-900"
-                                        : "border border-transparent text-white/70 hover:border-white/20 hover:bg-white/5 hover:text-white"
+                                    ? "bg-cyan-400 text-slate-900"
+                                    : "border border-transparent text-white/70 hover:border-white/20 hover:bg-white/5 hover:text-white"
                                     }`}
                             >
                                 {item.label}

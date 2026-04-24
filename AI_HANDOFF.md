@@ -339,6 +339,10 @@ Startup behavior:
   - `gridwise/.env`
   - `rag_service/.env`
 - Resolves data CSV path from env or fallbacks.
+  - `colab/karnataka_energy_2019_2024.csv`
+  - `data/karnataka_energy_2019_2024.csv`
+  - `gridwise/data/karnataka_energy_2019_2024.csv`
+  - `gridwise_data/` (directory of district-year CSVs)
 - Loads FAISS index if present; otherwise ingests CSV and creates it.
 - Sets retriever with `k=6`.
 
@@ -348,7 +352,7 @@ Input models:
 - Capacity: `{ district, forecasted_demand_3h, available_supply }`
 
 LLM and embeddings:
-- Gemini chat model: `gemini-1.5-pro`
+- Gemini chat model: `gemini-2.5-flash`
 - Embeddings: `models/embedding-001`
 
 Output handling:

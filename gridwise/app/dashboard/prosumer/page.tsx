@@ -83,7 +83,11 @@ export default function ProsumerDashboardPage() {
         setLoading(true);
         try {
             const [forecastRes, offersRes, ledgerRes] = await Promise.all([
-                fetch("/api/forecast", { method: "POST" }),
+                fetch("/api/forecast", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ horizonHours: 24 }),
+                }),
                 fetch("/api/trade/offer?scope=mine", { cache: "no-store" }),
                 fetch("/api/trade/ledger?pageSize=20", { cache: "no-store" }),
             ]);
@@ -127,6 +131,16 @@ export default function ProsumerDashboardPage() {
     const askAssistant = async () => {
         if (!question.trim()) return;
 
+        const forecastWindow = forecast?.hourlyBreakdown.slice(0, 3) ?? [];
+        const forecastedDemand3h =
+            forecastWindow.length > 0
+                ? forecastWindow.reduce((sum, point) => sum + point.demand, 0)
+                : (forecast?.forecast.forecasted_demand_kWh ?? 0);
+        const availableSupply =
+            forecastWindow.length > 0
+                ? forecastWindow.reduce((sum, point) => sum + Math.max(point.solar, 0), 0)
+                : (forecast?.forecast.forecasted_solar_kWh ?? 0);
+
         setAssistantLoading(true);
         try {
             const response = await fetch("/api/rag/query", {
@@ -135,11 +149,24 @@ export default function ProsumerDashboardPage() {
                 body: JSON.stringify({
                     question,
                     type: "capacity",
-                    payload: { question },
+                    payload: {
+                        district: forecast?.hierarchy.district ?? "Bangalore Urban",
+                        forecasted_demand_3h: Number(forecastedDemand3h.toFixed(3)),
+                        available_supply: Number(availableSupply.toFixed(3)),
+                    },
                 }),
             });
 
             const data = await response.json();
+
+            if (!response.ok) {
+                setAssistantResult({
+                    summary: data.error ?? "Capacity recommendations are unavailable right now.",
+                    recommended_actions: [],
+                });
+                return;
+            }
+
             setAssistantResult(data);
         } finally {
             setAssistantLoading(false);

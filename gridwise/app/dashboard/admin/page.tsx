@@ -31,6 +31,12 @@ type DistrictSurplus = {
     surplus_kWh: number;
 };
 
+type DemandSupplyPoint = {
+    date: string;
+    demand: number;
+    supply: number;
+};
+
 type LedgerItem = {
     id: string;
     completedAt: string;
@@ -64,6 +70,7 @@ export default function AdminDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [anomalies, setAnomalies] = useState<GridAnomaly[]>([]);
     const [districtSurplus, setDistrictSurplus] = useState<DistrictSurplus[]>([]);
+    const [demandSupplyTrend, setDemandSupplyTrend] = useState<DemandSupplyPoint[]>([]);
     const [ledger, setLedger] = useState<LedgerItem[]>([]);
     const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
     const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -89,6 +96,7 @@ export default function AdminDashboardPage() {
             if (anomalyRes.ok) {
                 setAnomalies(anomalyData.anomalies ?? []);
                 setDistrictSurplus(anomalyData.districtSurplus ?? []);
+                setDemandSupplyTrend(anomalyData.demandSupplyTrend ?? []);
             }
 
             if (ledgerRes.ok) {
@@ -202,12 +210,19 @@ export default function AdminDashboardPage() {
     }, [ledger]);
 
     const demandVsSupply = useMemo(() => {
+        if (demandSupplyTrend.length > 0) {
+            return demandSupplyTrend.map((row) => ({
+                ...row,
+                date: row.date.length >= 10 ? row.date.slice(5) : row.date,
+            }));
+        }
+
         return tradedPerDay.map((row) => ({
             date: row.date,
             demand: Number((row.energy * 1.22).toFixed(2)),
             supply: Number((row.energy * 0.98).toFixed(2)),
         }));
-    }, [tradedPerDay]);
+    }, [demandSupplyTrend, tradedPerDay]);
 
     const filteredLedger = useMemo(() => {
         return ledger.filter((item) => {

@@ -62,6 +62,23 @@ type UiForecastPoint = {
     };
 };
 
+function toNonNegative(value: unknown, fallback = 0) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(0, parsed);
+}
+
+function toFinite(value: unknown, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clamp01(value: unknown, fallback = 0.5) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(1, Math.max(0, parsed));
+}
+
 function buildFallbackHorizon(
     demand: number,
     solar: number,
@@ -117,13 +134,13 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
 
     const now = new Date();
     const hour = now.getHours();
-    const dayOfWeek = now.getDay();
+    const dayOfWeek = (now.getDay() + 6) % 7;
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
     const season = getSeason(month);
     const peakFlag = isPeakHour(hour);
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isWeekend = dayOfWeek >= 5;
 
     const gridConfig = getCityGridConfig(user.district, user.city);
     const hierarchy = getGeoHierarchy(user.district, user.city, now);
@@ -241,33 +258,43 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
             const firstPoint = remote.forecasts[0];
 
             if (firstPoint) {
+                const demand = toNonNegative(firstPoint.forecasted_demand_kWh, fallbackDemand);
+                const solar = toNonNegative(firstPoint.forecasted_solar_kWh, fallbackSolar);
+                const surplus = toFinite(firstPoint.forecasted_surplus_kWh, solar - demand);
+
                 forecast = {
-                    forecasted_demand_kWh: Number(firstPoint.forecasted_demand_kWh),
-                    forecasted_solar_kWh: Number(firstPoint.forecasted_solar_kWh),
-                    forecasted_surplus_kWh: Number(firstPoint.forecasted_surplus_kWh),
-                    confidence: Number(remote.average_confidence ?? firstPoint.confidence ?? 0.75),
+                    forecasted_demand_kWh: Number(demand.toFixed(3)),
+                    forecasted_solar_kWh: Number(solar.toFixed(3)),
+                    forecasted_surplus_kWh: Number(surplus.toFixed(3)),
+                    confidence: Number(clamp01(remote.average_confidence ?? firstPoint.confidence ?? 0.75, 0.75).toFixed(3)),
                     model_version: String(remote.model_version ?? "ml-horizon-v1"),
                 };
 
-                hourlyBreakdown = remote.forecasts.map((point) => ({
-                    timestamp: point.timestamp,
-                    label: point.label,
-                    hour: point.hour,
-                    day: point.day,
-                    month: point.month,
-                    year: point.year,
-                    demand: Number(point.forecasted_demand_kWh),
-                    solar: Number(point.forecasted_solar_kWh),
-                    surplus: Number(point.forecasted_surplus_kWh),
-                    temperature_C: Number(point.temperature_C),
-                    weather: point.weather,
-                    usage: {
-                        localArea: Number(point.usage_local_area_kWh),
-                        subCity: Number(point.usage_sub_city_kWh),
-                        city: Number(point.usage_city_kWh),
-                        state: Number(point.usage_state_kWh),
-                    },
-                }));
+                hourlyBreakdown = remote.forecasts.map((point) => {
+                    const demandValue = toNonNegative(point.forecasted_demand_kWh, 0);
+                    const solarValue = toNonNegative(point.forecasted_solar_kWh, 0);
+                    const surplusValue = toFinite(point.forecasted_surplus_kWh, solarValue - demandValue);
+
+                    return {
+                        timestamp: point.timestamp,
+                        label: point.label,
+                        hour: point.hour,
+                        day: point.day,
+                        month: point.month,
+                        year: point.year,
+                        demand: Number(demandValue.toFixed(3)),
+                        solar: Number(solarValue.toFixed(3)),
+                        surplus: Number(surplusValue.toFixed(3)),
+                        temperature_C: Number(toFinite(point.temperature_C, payload.temperature_C).toFixed(2)),
+                        weather: point.weather,
+                        usage: {
+                            localArea: Number(toNonNegative(point.usage_local_area_kWh, 0).toFixed(3)),
+                            subCity: Number(toNonNegative(point.usage_sub_city_kWh, 0).toFixed(3)),
+                            city: Number(toNonNegative(point.usage_city_kWh, 0).toFixed(3)),
+                            state: Number(toNonNegative(point.usage_state_kWh, 0).toFixed(3)),
+                        },
+                    };
+                });
             }
         }
     } catch {

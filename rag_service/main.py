@@ -56,6 +56,7 @@ def _resolve_data_path() -> Path:
         REPO_ROOT / "colab" / "karnataka_energy_2019_2024.csv",
         REPO_ROOT / "data" / "karnataka_energy_2019_2024.csv",
         REPO_ROOT / "gridwise" / "data" / "karnataka_energy_2019_2024.csv",
+        REPO_ROOT / "gridwise_data",
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -152,6 +153,8 @@ def health() -> dict:
         "embedding_provider": embedding_config.get("provider"),
         "embedding_model": embedding_config.get("model"),
         "embedding_base_url": embedding_config.get("base_url"),
+        "data_path": str(DATA_PATH),
+        "data_path_exists": DATA_PATH.exists(),
         "model": "gemini-2.5-flash",
     }
 

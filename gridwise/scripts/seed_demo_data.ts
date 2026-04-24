@@ -24,6 +24,43 @@ const DEMO_DISTRICTS = [
     "Dakshina Kannada",
 ] as const;
 
+type Rng = () => number;
+
+function createRng(seed: number): Rng {
+    let state = seed >>> 0;
+    return () => {
+        state += 0x6d2b79f5;
+        let t = Math.imul(state ^ (state >>> 15), 1 | state);
+        t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function hashString(input: string) {
+    let h = 2166136261;
+    for (let i = 0; i < input.length; i += 1) {
+        h ^= input.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+}
+
+function randomBetween(rng: Rng, min: number, max: number) {
+    return min + (max - min) * rng();
+}
+
+function randomInt(rng: Rng, min: number, max: number) {
+    return Math.floor(randomBetween(rng, min, max + 1));
+}
+
+function clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function pickRandom<T>(values: readonly T[], rng: Rng) {
+    return values[randomInt(rng, 0, values.length - 1)];
+}
+
 function slugifyDistrict(input: string) {
     return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
@@ -149,17 +186,33 @@ async function clearExistingDemoData(demoUserIds: string[]) {
     });
 }
 
-async function seedForecasts(prosumers: DemoUser[]) {
+async function seedForecasts(prosumers: DemoUser[], rng: Rng) {
     const now = Date.now();
 
     for (let i = 0; i < prosumers.length; i += 1) {
         const user = prosumers[i];
+        const districtBias = randomBetween(rng, -18, 16);
+        const baseDemand = randomBetween(rng, 145, 245);
 
-        for (let slot = 0; slot < 8; slot += 1) {
-            const demand = 165 + i * 9 + slot * 5;
-            const solar = 52 + ((i + slot) % 6) * 7;
-            const surplusBias = i % 3 === 0 ? -34 : i % 3 === 1 ? 18 : 7;
-            const surplus = surplusBias + (slot - 3) * 3;
+        for (let slot = 0; slot < 12; slot += 1) {
+            const hour = (slot * 2 + randomInt(rng, 0, 1)) % 24;
+            const demandSwing = 20 * Math.sin((2 * Math.PI * (hour - 7)) / 24);
+            const demandNoise = randomBetween(rng, -10, 10);
+            const demand = clamp(baseDemand + demandSwing + demandNoise + (i % 4) * 2.5, 90, 325);
+
+            const solarCurve = Math.max(0, Math.sin((Math.PI * (hour - 5)) / 14));
+            const rawSolar = (34 + randomBetween(rng, 0, 72)) * solarCurve + randomBetween(rng, -5, 9);
+            const solar = clamp(rawSolar, 0, 130);
+
+            const surplus = clamp(
+                solar * 0.86 - demand * 0.19 + districtBias + randomBetween(rng, -15, 15),
+                -105,
+                95
+            );
+
+            const generatedAt = new Date(
+                now - (slot * 2 + randomInt(rng, 0, 2) + i) * 60 * 60 * 1000
+            );
 
             await prisma.energyForecast.create({
                 data: {
@@ -167,100 +220,131 @@ async function seedForecasts(prosumers: DemoUser[]) {
                     forecastedDemand_kWh: Number(demand.toFixed(2)),
                     forecastedSurplus_kWh: Number(surplus.toFixed(2)),
                     horizon_hours: 24,
-                    modelVersion: "demo-seed-v1",
-                    generatedAt: new Date(now - (slot * 3 + i) * 60 * 60 * 1000),
+                    modelVersion: "demo-seed-v2-random",
+                    generatedAt,
                 },
             });
 
             await prisma.smartMeter.create({
                 data: {
                     userId: user.id,
-                    currentLoad_kW: Number((demand / 50).toFixed(2)),
-                    solarGeneration_kW: Number((solar / 50).toFixed(2)),
-                    batteryLevel_pct: Number((42 + ((slot + i) % 40)).toFixed(2)),
-                    timestamp: new Date(now - (slot * 2 + i) * 60 * 60 * 1000),
+                    currentLoad_kW: Number((demand / randomBetween(rng, 42, 58)).toFixed(2)),
+                    solarGeneration_kW: Number((solar / randomBetween(rng, 38, 55)).toFixed(2)),
+                    batteryLevel_pct: Number(
+                        clamp(randomBetween(rng, 22, 92) + slot * 1.3 - randomBetween(rng, 0, 15), 8, 98).toFixed(2)
+                    ),
+                    timestamp: new Date(generatedAt.getTime() + randomInt(rng, 5, 55) * 60 * 1000),
                 },
             });
         }
     }
 }
 
-async function seedAnomalies(prosumers: DemoUser[]) {
-    const deficitUsers = prosumers.filter((_, idx) => idx % 3 === 0).slice(0, 4);
+async function seedAnomalies(prosumers: DemoUser[], rng: Rng) {
+    const anomalyUsers = [...prosumers].sort(() => rng() - 0.5).slice(0, randomInt(rng, 3, 6));
+    type AnomalyType = "DEMAND_SPIKE" | "UNDERPERFORMING_SOURCE" | "SURPLUS_OVERFLOW";
+    type SeverityLevel = "low" | "medium" | "high";
 
-    for (let i = 0; i < deficitUsers.length; i += 1) {
-        const user = deficitUsers[i];
+    const types: readonly AnomalyType[] = [
+        "DEMAND_SPIKE",
+        "UNDERPERFORMING_SOURCE",
+        "SURPLUS_OVERFLOW",
+    ];
+    const severities: readonly SeverityLevel[] = ["low", "medium", "high"];
+
+    for (let i = 0; i < anomalyUsers.length; i += 1) {
+        const user = anomalyUsers[i];
+        const type = pickRandom(types, rng);
+        const severity = pickRandom(severities, rng);
+        const descriptionByType: Record<AnomalyType, string> = {
+            DEMAND_SPIKE: `Demo seed: Sudden evening demand surge detected in ${user.city}, ${user.district}.`,
+            UNDERPERFORMING_SOURCE: `Demo seed: Renewable generation underperforming in ${user.city}, ${user.district}.`,
+            SURPLUS_OVERFLOW: `Demo seed: High localized surplus causing export congestion in ${user.city}, ${user.district}.`,
+        };
+        const actionByType: Record<AnomalyType, string> = {
+            DEMAND_SPIKE: "Dispatch short-duration storage and trigger demand-response messages.",
+            UNDERPERFORMING_SOURCE: "Inspect feeder constraints and rebalance dispatch from neighboring zones.",
+            SURPLUS_OVERFLOW: "Increase peer-trade incentives and route surplus to deficit feeders.",
+        };
 
         await prisma.gridAnomaly.create({
             data: {
                 district: user.district,
                 city: user.city,
-                type: i % 2 === 0 ? "DEMAND_SPIKE" : "UNDERPERFORMING_SOURCE",
-                severity: i % 2 === 0 ? "high" : "medium",
-                description: `Demo seed: ${user.city} is showing abnormal load behavior in ${user.district}.`,
-                suggestedAction:
-                    i % 2 === 0
-                        ? "Dispatch battery reserves and trigger demand-response notifications."
-                        : "Increase rooftop generation dispatch and inspect feeder constraints.",
-                createdAt: new Date(Date.now() - i * 3 * 60 * 60 * 1000),
+                type,
+                severity,
+                description: descriptionByType[type],
+                suggestedAction: actionByType[type],
+                createdAt: new Date(Date.now() - randomInt(rng, 1, 20) * 60 * 60 * 1000),
             },
         });
     }
 }
 
-async function seedTradesAndLedger(prosumers: DemoUser[], consumers: DemoUser[]) {
+async function seedTradesAndLedger(prosumers: DemoUser[], consumers: DemoUser[], rng: Rng) {
     const now = Date.now();
 
-    for (let day = 0; day < 30; day += 1) {
-        const seller = prosumers[day % prosumers.length];
-        const buyer = consumers[(day + 2) % consumers.length];
+    for (let day = 0; day < 32; day += 1) {
+        const tradesToday = randomInt(rng, 1, 3);
 
-        const energyAmount = Number((20 + (day % 7) * 4.2).toFixed(2));
-        const pricePerUnit = Number((6.5 + (day % 5) * 0.45).toFixed(2));
-        const billSplit = Number((energyAmount * pricePerUnit).toFixed(2));
+        for (let n = 0; n < tradesToday; n += 1) {
+            const seller = pickRandom(prosumers, rng);
+            const buyer = pickRandom(consumers, rng);
+            const pressureFactor = ["Bangalore Urban", "Dharwad", "Kalaburagi"].includes(seller.district) ? 1.08 : 1;
+            const energyAmount = Number(
+                clamp(randomBetween(rng, 12, 56) * pressureFactor + randomBetween(rng, -6, 6), 8, 72).toFixed(2)
+            );
+            const pricePerUnit = Number(clamp(randomBetween(rng, 5.8, 9.8), 5.2, 10.8).toFixed(2));
+            const billSplit = Number((energyAmount * pricePerUnit).toFixed(2));
 
-        const completedAt = new Date(now - day * 24 * 60 * 60 * 1000);
-        const createdAt = new Date(completedAt.getTime() - 2 * 60 * 60 * 1000);
+            const completedAt = new Date(now - day * 24 * 60 * 60 * 1000);
+            completedAt.setHours(randomInt(rng, 7, 22), randomInt(rng, 0, 59), 0, 0);
+            const createdAt = new Date(completedAt.getTime() - randomInt(rng, 35, 260) * 60 * 1000);
 
-        const offer = await prisma.tradeOffer.create({
-            data: {
-                sellerId: seller.id,
-                buyerId: buyer.id,
-                district: seller.district,
-                city: seller.city,
-                energyAmount_kWh: energyAmount,
-                pricePerUnit_INR: pricePerUnit,
-                billSplit_INR: billSplit,
-                status: "COMPLETED",
-                createdAt,
-                completedAt,
-            },
-            select: { id: true },
-        });
+            const offer = await prisma.tradeOffer.create({
+                data: {
+                    sellerId: seller.id,
+                    buyerId: buyer.id,
+                    district: seller.district,
+                    city: seller.city,
+                    energyAmount_kWh: energyAmount,
+                    pricePerUnit_INR: pricePerUnit,
+                    billSplit_INR: billSplit,
+                    status: "COMPLETED",
+                    createdAt,
+                    completedAt,
+                },
+                select: { id: true },
+            });
 
-        await prisma.tradeLedger.create({
-            data: {
-                tradeId: offer.id,
-                sellerEarnings_INR: Number((billSplit * 0.86).toFixed(2)),
-                buyerSavings_INR: Number((billSplit * 0.11).toFixed(2)),
-                carbonCredits: Number((energyAmount * 0.075).toFixed(2)),
-                timestamp: completedAt,
-            },
-        });
+            await prisma.tradeLedger.create({
+                data: {
+                    tradeId: offer.id,
+                    sellerEarnings_INR: Number((billSplit * randomBetween(rng, 0.8, 0.9)).toFixed(2)),
+                    buyerSavings_INR: Number((billSplit * randomBetween(rng, 0.08, 0.18)).toFixed(2)),
+                    carbonCredits: Number((energyAmount * randomBetween(rng, 0.055, 0.11)).toFixed(2)),
+                    timestamp: completedAt,
+                },
+            });
+        }
     }
 
-    for (let i = 0; i < 8; i += 1) {
-        const seller = prosumers[i % prosumers.length];
+    const openOffers = randomInt(rng, 10, 16);
+    for (let i = 0; i < openOffers; i += 1) {
+        const seller = pickRandom(prosumers, rng);
+        const energy = Number(clamp(randomBetween(rng, 10, 60), 8, 70).toFixed(2));
+        const price = Number(clamp(randomBetween(rng, 6.2, 10.2), 5.5, 11).toFixed(2));
 
         await prisma.tradeOffer.create({
             data: {
                 sellerId: seller.id,
                 district: seller.district,
                 city: seller.city,
-                energyAmount_kWh: Number((18 + i * 1.6).toFixed(2)),
-                pricePerUnit_INR: Number((7.1 + i * 0.2).toFixed(2)),
-                billSplit_INR: Number((145 + i * 13.5).toFixed(2)),
+                energyAmount_kWh: energy,
+                pricePerUnit_INR: price,
+                billSplit_INR: Number((energy * price).toFixed(2)),
                 status: "OPEN",
+                createdAt: new Date(now - randomInt(rng, 2, 72) * 60 * 60 * 1000),
             },
         });
     }
@@ -268,6 +352,8 @@ async function seedTradesAndLedger(prosumers: DemoUser[], consumers: DemoUser[])
 
 async function main() {
     const demoPassword = process.env.DEMO_PASSWORD ?? "Demo@12345";
+    const seedInput = process.env.DEMO_RANDOM_SEED?.trim() || String(Date.now());
+    const rng = createRng(hashString(seedInput));
     const users = await upsertDemoUsers(demoPassword);
 
     const demoUserIds = users.map((user) => user.id);
@@ -276,9 +362,9 @@ async function main() {
     const prosumers = users.filter((user) => user.role === "PROSUMER");
     const consumers = users.filter((user) => user.role === "CONSUMER");
 
-    await seedForecasts(prosumers);
-    await seedAnomalies(prosumers);
-    await seedTradesAndLedger(prosumers, consumers);
+    await seedForecasts(prosumers, rng);
+    await seedAnomalies(prosumers, rng);
+    await seedTradesAndLedger(prosumers, consumers, rng);
 
     const [forecastCount, offerCount, ledgerCount, anomalyCount] = await Promise.all([
         prisma.energyForecast.count({ where: { userId: { in: demoUserIds } } }),
@@ -289,6 +375,7 @@ async function main() {
 
     console.log("Demo dashboard data seeded:");
     console.log({
+        randomSeed: seedInput,
         users: users.length,
         forecasts: forecastCount,
         offers: offerCount,

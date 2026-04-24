@@ -14,6 +14,11 @@ const endpointMap: Record<"forecast" | "anomaly" | "capacity", string> = {
     capacity: "/rag/capacity",
 };
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 const fallbackResult = {
     summary:
         "GridWise assistant is currently using fallback reasoning because the RAG service is unavailable.",
@@ -40,10 +45,43 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
     const ragServiceUrl = process.env.RAG_SERVICE_URL?.trim() || "http://localhost:8002";
     const endpoint = endpointMap[parsed.data.type];
 
-    const outgoingBody =
-        parsed.data.type === "forecast"
-            ? { question: parsed.data.question, district: user.district, city: user.city }
-            : parsed.data.payload ?? { question: parsed.data.question, district: user.district, city: user.city };
+    let outgoingBody: Record<string, unknown>;
+
+    if (parsed.data.type === "forecast") {
+        outgoingBody = {
+            question: parsed.data.question,
+            district: user.district,
+            city: user.city,
+        };
+    } else if (parsed.data.type === "capacity") {
+        const payload = parsed.data.payload ?? {};
+        outgoingBody = {
+            district:
+                typeof payload.district === "string" && payload.district.trim()
+                    ? payload.district
+                    : user.district,
+            forecasted_demand_3h: toFiniteNumber(payload.forecasted_demand_3h, 0),
+            available_supply: toFiniteNumber(payload.available_supply, 0),
+        };
+    } else {
+        const payload = parsed.data.payload ?? {};
+        outgoingBody = {
+            district:
+                typeof payload.district === "string" && payload.district.trim()
+                    ? payload.district
+                    : user.district,
+            city:
+                typeof payload.city === "string" && payload.city.trim()
+                    ? payload.city
+                    : user.city,
+            current_demand: toFiniteNumber(payload.current_demand, 0),
+            current_solar: toFiniteNumber(payload.current_solar, 0),
+            timestamp:
+                typeof payload.timestamp === "string" && payload.timestamp.trim()
+                    ? payload.timestamp
+                    : new Date().toISOString(),
+        };
+    }
 
     try {
         const response = await fetch(`${ragServiceUrl}${endpoint}`, {
@@ -55,8 +93,12 @@ export const POST = withAuth(async (req: NextRequest, { user }) => {
         const data = await response.json();
         if (!response.ok) {
             return NextResponse.json(
-                { error: data.error ?? "RAG service error", upstream: data },
-                { status: response.status }
+                {
+                    ...fallbackResult,
+                    summary: `GridWise assistant is currently using fallback reasoning because the RAG service returned ${response.status}.`,
+                    upstream: data,
+                },
+                { status: 200 }
             );
         }
 
