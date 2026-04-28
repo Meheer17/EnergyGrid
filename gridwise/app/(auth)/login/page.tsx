@@ -60,7 +60,7 @@ export default function LoginPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/70">GridWise Access</p>
             <h1 className="mt-3 text-3xl font-bold text-white">Sign in to Control Room</h1>
             <p className="mt-2 text-sm text-white/70">Access district-level forecasts, trading, and AI recommendations.</p>
-
+            <p className="mt-1 text-sm text-white/70">Admin: admin@gridwise.in Admin@12345</p>
             <form onSubmit={onSubmit} className="mt-8 space-y-4">
                 <div>
                     <label htmlFor="email" className="mb-1 block text-sm text-white/80">
