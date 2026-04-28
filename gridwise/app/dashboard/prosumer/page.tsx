@@ -83,9 +83,17 @@ export default function ProsumerDashboardPage() {
     const [assistantResult, setAssistantResult] = useState<
         | {
             summary: string;
-            recommended_actions?: string[];
+            sector_breakdown?: Record<string, number>;
+            recommended_actions?: Array<{
+                action: string;
+                expected_impact: string;
+                cost_INR: number;
+                time_to_implement: string;
+            }>;
             _meta?: {
                 source: "rag_service" | "fallback";
+                type?: string;
+                endpoint?: string;
                 reason?: string;
             };
         }
@@ -364,14 +372,40 @@ export default function ProsumerDashboardPage() {
                             )}
                         </div>
                         <p className="font-medium">{assistantResult.summary}</p>
+                        
+                        {assistantResult.sector_breakdown && (
+                            <div className="mt-3 rounded-lg border border-violet-200/10 bg-black/20 px-3 py-2">
+                                <p className="text-[11px] font-semibold text-violet-300">Sector Breakdown:</p>
+                                <div className="mt-1 grid grid-cols-2 gap-2 text-[11px]">
+                                    {Object.entries(assistantResult.sector_breakdown).map(([sector, kwh]) => (
+                                        <div key={sector} className="text-violet-200">
+                                            {sector}: <span className="font-semibold">{typeof kwh === "number" ? kwh.toFixed(2) : String(kwh)} kWh</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {(assistantResult.recommended_actions ?? []).length > 0 && (
-                            <ul className="mt-3 space-y-2 text-violet-100/85">
-                                {(assistantResult.recommended_actions ?? []).map((item) => (
-                                    <li key={item} className="rounded-lg border border-violet-200/10 bg-black/20 px-3 py-2">
-                                        {item}
-                                    </li>
+                            <div className="mt-3 space-y-2">
+                                <p className="text-[11px] font-semibold text-violet-300">Recommended Actions:</p>
+                                {(assistantResult.recommended_actions ?? []).map((item, idx) => (
+                                    <div key={idx} className="rounded-lg border border-violet-200/10 bg-black/20 px-3 py-2">
+                                        <p className="font-semibold text-violet-100">{item.action}</p>
+                                        <p className="mt-1 text-[11px] text-violet-200">
+                                            <span className="text-white/60">Impact:</span> {item.expected_impact}
+                                        </p>
+                                        <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
+                                            <span className="text-violet-300">
+                                                Cost: <span className="font-semibold">₹{typeof item.cost_INR === "number" ? item.cost_INR.toLocaleString("en-IN") : String(item.cost_INR)}</span>
+                                            </span>
+                                            <span className="text-violet-300">
+                                                Timeline: <span className="font-semibold">{String(item.time_to_implement)}</span>
+                                            </span>
+                                        </div>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         )}
                     </div>
                 )}
