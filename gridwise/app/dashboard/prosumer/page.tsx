@@ -372,7 +372,7 @@ export default function ProsumerDashboardPage() {
                             )}
                         </div>
                         <p className="font-medium">{assistantResult.summary}</p>
-                        
+
                         {assistantResult.sector_breakdown && (
                             <div className="mt-3 rounded-lg border border-violet-200/10 bg-black/20 px-3 py-2">
                                 <p className="text-[11px] font-semibold text-violet-300">Sector Breakdown:</p>

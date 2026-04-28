@@ -17,6 +17,9 @@ const signupSchema = z.object({
 
 export async function POST(req: NextRequest) {
     try {
+        const forwardedProto = req.headers.get("x-forwarded-proto");
+        const isHttps = req.nextUrl.protocol === "https:" || forwardedProto === "https";
+
         const body = await req.json();
         const parsed = signupSchema.safeParse(body);
 
@@ -81,7 +84,7 @@ export async function POST(req: NextRequest) {
             value: token,
             httpOnly: true,
             sameSite: "lax",
-            secure: process.env.NODE_ENV === "production",
+            secure: isHttps,
             maxAge: SEVEN_DAYS_IN_SECONDS,
             path: "/",
         });
